@@ -1,0 +1,40 @@
+# Pressure system with Scientifica micromanipulators
+
+This Matlab-based graphical user interface allows programmatic control of the pressure system and the Scientifica manipulators. The solenoid valves of the pressure system are electronically switched by relais which are controlled through the digital output channels of the Arduino board. The Arduino board is controlled through Matlab.
+
+## Getting Started
+
+ 1. Build the pressure system according to the supplement material and instruction guide. Connect the Arduino board and the Scientifca controlling units to the Computer via USB.
+ 2. Make sure that the wiring of the different channels to the relays and their corresponding solenoid valves are documented.
+ 3. Install the Legacy Matlab support for Arduino which can be downloaded here: [https://de.mathworks.com/matlabcentral/fileexchange/32374-legacy-matlab-and-simulink-support-for-arduino](https://de.mathworks.com/matlabcentral/fileexchange/32374-legacy-matlab-and-simulink-support-for-arduino)
+ 4. Install the IDE on the Arduino board which is included in the Matlab addon (follow the instructions on the respective readme file).
+ 5. For automated cleaning, setup the specific parameters in manipulator_move_pressure.m adjusted to your specific setup configuration.
+ 6. Load the setup.m file and configure the specific variables:
+	 1. arduino_comport: find out the COM port assigned to the arduino and write this as a string value (e.g. 'COM15'). 
+	 2. manipulator_number: enter the number of manipulators (e.g. 10).
+	 3. manipulator_type: write 'scientifica' if you want to enable manipulator control in the pressure system. If you only want to control the pressure independent of manipulator manufacturer, enter 'none'.
+	 4. scientifica_ports: find out the COM ports assigned to each Scientifica manipulator and enter them in the second column. Scope corresponds to the COM port of the microscope.
+	 5. valve_wiring: for each ventilID (="valve", first column) put in an ID for the relay and the corresponding Arduino digital output. ventilID 1xx represent the valves immediately connected to the pipette pressure tubes, switching between the other two valve manifolds. ventilID 2xx are the valves switching between the "clean" channel and the "high/patch" channel. ventilID 3xx are the valves switching between the "low" and "atmosphere/air" channel. ventilID 4xx are the bigger valves connected to the pressure regulators.
+ 7. Save the setup.m file and run app_pressure.mlapp
+
+### Prerequisites
+
+ - Matlab R2018a and Legacy Matlab support for Arduino addon
+ - Arduino IDE (from Matlab addon)
+ 
+ ### Installing
+
+When the Arduino is setup and setup.m file is configured as shown above, no further installation is needed. Run the app_pressure.mlapp file for the GUI.
+
+## Furhter notes
+
+The software provided does not represent a plug&play solution. Customization of the code is very likely necessary to make it work with other systems.
+
+ - An important aspect is to figure out the relay wiring and the correct controlling of these. The setvalve.m function is important for assigning the valves to the different pressure states.
+ - Programmatic control of Scientifica manipulators is possible through sending string commands to the COM ports. For further details on available string commands, please contact Scientifica support.
+ - We did not include the pipette finding algorithm. This would require extensive individual adjustments. We provide a conceptual guide on the programming approach.
+ - Further help is provided as comments in the code.
+
+## Contributors
+
+Code for Scientifica setup is written by Yangfan Peng. Code for Sensapex setup is written by Franz X. Mittermaier
