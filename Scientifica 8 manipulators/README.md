@@ -24,16 +24,17 @@ This Matlab-based graphical user interface allows programmatic control of the pr
  
  ### Installing
 
-When the Arduino is setup and setup.m file is configured as shown above, no further installation is needed. Run the app_pressure.mlapp file for the GUI.
+When the Arduino is configured with the IDE and the setup.m file is configured as shown above, no further installation is needed. Run the app_pressure.mlapp file for the GUI.
 
-## Furhter notes
+## Further notes
 
 The software provided does not represent a plug&play solution. Customization of the code is very likely necessary to make it work with other systems.
 
  - An important aspect is to figure out the relay wiring and the correct controlling of these. The setvalve.m function is important for assigning the valves to the different pressure states.
  - Programmatic control of Scientifica manipulators is possible through sending string commands to the COM ports. For further details on available string commands, please contact Scientifica support.
- - We did not include the pipette finding algorithm. This would require extensive individual adjustments. We provide a conceptual guide on the programming approach.
+ - We did not include the pipette finding algorithm. This would require extensive individual adjustments. We provide a conceptual guide on the programming approach in the supplementary documentation.
  - Further help is provided as comments in the code.
+ - For further help, please contact yangfan.peng@charite.de
 
 ## Contributors
 
