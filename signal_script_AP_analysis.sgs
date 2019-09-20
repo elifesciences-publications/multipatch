@@ -1,0 +1,198 @@
+var dateid$, age%, fileend$, ok%;        'for dialog
+var slice$, sliceid$, year$, month$;   'for script
+var file$, filestem$, folderpath$, fileendfreq$, subfolder$, path$, err%;       'for file conversion and export
+var transfer$[7];
+var data%, measure%, txt%;  'view handles 
+var a%;     'view handles
+var i%, ch[8], chselect[8];            'for loops
+var file_comment$, framenumber, text1$, text2$, freq%; 'variables for stimulation amplitude
+
+'var for spike detection
+var count%;					'Count of spikes in frame
+var current;				'Current measured spike
+var gotSpikeFlag% := 0;		'Flag if a spike is found
+var frameCounter%;			'Keep count of frames	
+var chan% := 1;				'Channel to analyse
+var spikeTimes[1000];		'Array to hold actual times of spikes
+var printCount%;
+var peakthreshold% := 0;   '50mV as peak threshold
+var pTime,pAmp;				'Time and level of peak for spike					
+var sTime,sAmp;				'Time and level of spike start	
+var amp,rmp;			    'Peak amplitude (pAmp-sAmp), resting membrane potential (500ms mean)
+var RiseAmp10,RiseTime10;	'Level and time at 10% rise
+var riseAmp90,RiseTime90;	'     "        "   90%  "				
+var RiseAmp50,RiseTime50,FallTime50;	'Level and times for 50% rise and fall
+var depolTime,repolTime;				'Time of steepest rising point
+var maxdepol,maxrepol;      'maximum repolarization and depolarization rate
+var hWidth;		            'Half width time
+var AHPTime,AHPAmp;			'Time and level of afterhyperpolarisation peak
+var maxdata,minData;        'range of data in initial frame.
+var pDAmp := 15;	        'minimum amplitude for peak at 15mV
+var res%;					'Text file to hold detailed results
+var test;					'Check to see if spikes present in frame
+var check%;					'Flag to either inspect individual spikes or run through whole file				
+var all%;					'Additional variable related to check%
+var got%;					'Returned indicating search errors
+var error%[7];				'Array of flags indication search errors
+var numErrors%;				'Number of detected errors
+var rej%;
+var vChan%;
+var ch$;
+var pos$[7];				
+var gFloat%[20];
+
+'1. Part: imports file and allows tagging of frames
+'Note that this script is adjusted to specific folder and file structure used in our experiments
+
+dlgcreate("File and cell selection");   'creates dialog
+dlgstring(1,"DatumID",6);               'asks for date yymmdd
+dlgstring(2,"Slice",3);                 'asks for slice number
+dlgstring(3,"last 3 digits of freq file",3);             'asks for last 2 digits of file name
+dlgshow(dateid$, slice$, fileend$);     'shows dialog
+
+filestem$:=print$("%s0",delstr$(dateid$,3,1));
+sliceid$:=print$("%ss%s",dateid$,slice$);           'generates string for sliceID
+year$:=print$("20%s",delstr$(dateid$,3,4));         'generates year in yyyy
+month$:=print$("%s",mid$(dateid$,3,2));             'generates month in mm
+folderpath$:=print$("%s","C:\\Users\\Pengy\\Forschung\\Peng Patch Recordings\\");   'change to specific target folder
+subfolder$:=print$("%s-%s\\",year$,month$);         'subfolder, change to specific subfolder structure
+path$:=Print$("%s%s%s%s",folderpath$,subfolder$,filestem$,fileend$);
+printlog(path$,"\n");
+
+'create result window
+res% := FileNew(1,0);
+Print("channel,frame,spikenumber,thresholdtime,threshold,peaktime,amplitude,10-90%risetime,maxdepoltime,maxdepolrate,maxrepoltime,maxrepolrate,halfwidth,AHPamplitude,AHPtime,RMP\n");	'Print headers to the result
+WindowTitle$(Print$("%s.properties",sliceid$));
+Window(0,70,100,100);
+
+
+'converts abf file to cfs file
+FileConvert$(print$("%s.abf",path$), 'converts abf file to cfs in same folder
+             print$("%s.cfs",path$),2,err%,"dll=axon");
+data%:=fileopen(print$("%s.cfs",path$),0); 'opens cfs file
+
+'analyse file
+View(data%);
+
+CursorDelete(-1);
+HCursorDelete(-1);		'Delete existing horizontal cursors
+CursorSet(7);																		'Set cursors to show detected positions
+CursorLabel(4,1,"Peak");															'Label cursors
+CursorLabel(4,2,"Threshold");
+CursorLabel(4,3,"10% rise");
+CursorLabel(4,4,"90% rise");
+CursorLabel(4,5,"50% rise");
+CursorLabel(4,6,"50% fall");
+CursorLabel(4,7,"AHP");
+CursorLabelPos(1,10);																'Set label positions to avoid overlapping
+CursorLabelPos(2,75);
+CursorLabelPos(3,70);
+CursorLabelPos(4,20);
+CursorLabelPos(5,30);
+CursorLabelPos(6,40);
+CursorLabelPos(7,80);
+
+'spike detection
+view(data%);
+FrontView(data%);
+YRange(-1);                                                       'max range of y axis
+interact("inspect frames",96);                             'allows user to inspect frames
+
+for i%:= 1 to 8 do
+    if chselect[i%-1]=1 then    'do if channel was selected in previous script
+        vChan%:=i%;      'assign channel counter to channel specifier
+        MinMax(vChan%,MinTime(),MaxTime(),minData,maxData);			'Get full Y range of data in initial frame
+        for frameCounter% := 1 to FrameCount() do			        'Loop through each frame
+            count% := 0;											'Reset spike counter
+            Frame(frameCounter%);							    	'Go to frame	
+            DrawAll();
+            current := MinTime();								    'Set variable to beginning of frame
+            test := MinTime();								    	'Initial check to see if any spikes present
+            repeat													'Loop through each crossing	
+                gotSpikeFlag% := ChanSearch(vChan%,4,current,MaxTime(),0,pDAmp,0.005); 'only start when trace crosses 0mV
+                if gotSpikeFlag% = 0 then							'If spike detected
+                    ArrConst(error%[],0);							'Reset error count
+                    err% := 0;										'Reset counter
+                    rej% := 0;										'Reset rejection flag
+                    pTime := current-0.005;								'Set peak time variable to start time (offset due to initial screen)
+                    got% := ChanSearch(vChan%,4,pTime,MaxTime(),0,pDAmp,0.005);	'Find spike peak, max width 5ms
+                    if got% < 0 then error%[0] := 1;endif;			'Set value of error in peak find
+                    if got% = 0 then
+                        Cursor(1,pTime);								'Set cursor at peak position
+                        
+                        depolTime := pTime;									'Set max slope time variable to peak time
+                        ChanSearch(vchan%,9,depolTime,depolTime-0.005);			'Find maximum slope
+                        maxdepol := ChanMeasure(vchan%,3,depolTime-0.00005,depolTime+0.00005);    'calculate slope at max slope time in 0.1 ms time window
+                        
+                        sTime := depolTime;									'Set spike start time to max slope time
+                        got% := ChanSearch(vChan%,18,sTime,sTime-0.005,0,20,0.0001);		'Find start of spike, threshold 20% of max slope, 0.1ms detection window
+                        if got% < 0 then error%[1] := 1;endif;
+                        Cursor(2,sTime);								'Set cursor at spike threshold
+                        spikeTimes[count%] := pTime;					'Put time into array
+                        pAmp := ChanValue(vChan%,pTime);			    'Get amplitudes at peak of spike
+                        sAmp := ChanValue(vChan%,sTime);                'Get amplitudes at start of spike
+                        if sAmp > -10 then                              'do not analyse spike properties if AP Threshold is > -10 mV
+                            amp := 0;
+                            riseAmp10 := 0;
+                            RiseAmp50 := 0;
+                            riseAmp90 := 0;
+                            RiseTime10 := 0;
+                            RiseTime50 := 0;
+                            RiseTime90 := 0;
+                            FallTime50 := 0;
+                            hWidth := 0;
+                        else;
+                            amp := pAmp - sAmp;								'Get spike amplitude relative to start
+                            riseAmp10 := sAmp + (amp * 0.1);				'Calculate levels for 10%, 50% and 90% rise
+                            riseAmp90 := sAmp + (amp * 0.9);
+                            riseAmp50 := sAmp + (amp * 0.5);
+                            riseTime10 := sTime;									
+                            got% := ChanSearch(vChan%,7,riseTime10,pTime,riseAmp10);		'Find time at 10% rise
+                            if got% < 0 then error%[2] := 1;endif;
+                            Cursor(3,riseTime10);
+                            riseTime90 := sTime;
+                            got% := ChanSearch(vChan%,7,riseTime90,pTime,riseAmp90);		'Find time at 90% rise
+                            if got% < 0 then error%[3] := 1;endif;
+                            Cursor(4,riseTime90);
+                            riseTime50 := sTime;
+                            got% := ChanSearch(vChan%,7,riseTime50,pTime,riseAmp50);		'Find time at 50% rise
+                            if got% < 0 then error%[4] := 1;endif;
+                            Cursor(5,riseTime50);
+                            fallTime50 := pTime;
+                            got% := ChanSearch(vChan%,8,fallTime50,pTime + 0.005,riseAmp50);	'Find time at 50% fall
+                            if got% < 0 then error%[5] := 1;endif;
+                            Cursor(6,fallTime50);
+                            hWidth := fallTime50 - riseTime50;						'Half width time
+                        endif;    
+                        AHPTime := pTime;
+						got% := ChanSearch(vChan%,5,AHPTime,MaxTime(),0,pDAmp);		'Find trough following spike
+                        
+                        repolTime := pTime;                             'set repolTime as peak time for start of search
+                        ChanSearch(vchan%,10,repolTime,repolTime+0.005);			'Find maximum repolarizing slope, time saved in repolTime
+                        maxrepol := ChanMeasure(vchan%,3,repolTime-0.00005,repolTime+0.00005);  'calculate slope at max slope time in 0.1 ms time window
+                        
+                        rmp := ChanMeasure(vchan%,2,1.4,1.9);           'calculates resting membrane potential as 500ms mean 1.2-1.9s
+                        
+                        if got% < 0 then error%[6] := 1;endif;
+                        AHPAmp := ChanValue(vChan%,AHPTime);
+                        Cursor(7,AHPTime);
+                        if AHPAmp > 0 then AHPAmp:=0; AHPTime:=0; endif;          'exclude AHP of last spike    
+                        count% += 1;									'Add 1 to spike count
+                        numErrors% := ArrSum(error%[]);
+                        'insert check function here
+                        View(res%).Print("%d,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                        vChan%,frameCounter%,count%,sTime*1000,sAmp,pTime*1000,amp,(riseTime90-riseTime10)*1000,
+                        depolTime*1000,maxdepol/1000,repolTime*1000,maxrepol/1000,hWidth*1000,AHPAmp,AHPTime*1000,rmp);	'Print detailed results to text window
+                    endif;	                    
+                  endif;
+            until gotSpikeFlag% < 0;							'Stop when no spike found		
+
+        next;
+    endif;
+next;
+view(data%); fileclose(0,-1);
+
+'saves the parameters in file
+View(res%);
+filesaveas(print$("%s\\signal export\\%s.properties.txt",folderpath$,sliceid$),1);      'enter output patch
+fileclose(0,-1);
